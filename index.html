@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="nl"><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magazijn — Gereedschapsbeheer</title>
+<!-- CDN scripts (vervangen lokale bestanden) -->
+<script src="index_files/qrcode.min.js"></script>
+<script src="index_files/html5-qrcode.min.js"></script>
+<script src="index_files/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,Helvetica,sans-serif;background:#F5F7FA;color:#1a1a1a;min-height:100vh}
+
+/* ── Setup screen ── */
+#setup-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:2rem}
+.setup-card{background:#fff;border-radius:16px;padding:2.5rem;max-width:540px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,0.10)}
+.setup-card h1{font-size:22px;font-weight:700;color:#1F3864;margin-bottom:6px}
+.setup-card .sub{font-size:14px;color:#6B7A99;margin-bottom:1.5rem;line-height:1.6}
+.setup-steps{background:#F0F4FA;border-radius:10px;padding:1rem 1.2rem;margin-bottom:1.5rem}
+.setup-steps ol{margin-left:1.2rem}
+.setup-steps li{font-size:13px;color:#374151;margin-bottom:6px;line-height:1.6}
+.setup-steps a{color:#2E5090;font-weight:600}
+.setup-steps code{background:#E8EEF8;padding:1px 6px;border-radius:4px;font-size:12px;font-family:monospace}
+.frow{margin-bottom:13px}
+.frow label{display:block;font-size:11px;font-weight:700;color:#6B7A99;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.06em}
+.frow input{width:100%;padding:10px 12px;font-size:13px;border:1.5px solid #DDE3EE;border-radius:8px;background:#fff;color:#1a1a1a;font-family:monospace}
+.frow input:focus{outline:none;border-color:#2E5090}
+.err-box{background:#F8D7DA;border:1.5px solid #F5C6CB;border-radius:8px;padding:10px 14px;font-size:13px;color:#721C24;margin-bottom:12px;display:none}
+.sql-box{background:#1e1e2e;border-radius:8px;padding:1rem;margin:8px 0 1.5rem;overflow-x:auto}
+.sql-box pre{color:#cdd6f4;font-size:11px;font-family:monospace;line-height:1.6;white-space:pre-wrap}
+.copy-btn{font-size:11px;float:right;background:#313244;color:#cdd6f4;border:none;border-radius:4px;padding:3px 8px;cursor:pointer;margin-left:8px}
+.copy-btn:hover{background:#45475a}
+details summary{cursor:pointer;font-size:13px;font-weight:700;color:#2E5090;margin-bottom:8px;user-select:none}
+
+/* ── App ── */
+#app-screen{display:none}
+.topbar{background:#1F3864;color:#fff;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,0.15)}
+.topbar h1{font-size:16px;font-weight:700}
+.topbar p{font-size:11px;opacity:0.65;margin-top:1px}
+.topbar-btns{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.live-dot{width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0;box-shadow:0 0 0 2px rgba(34,197,94,0.3)}
+.live-dot.red{background:#ef4444;box-shadow:0 0 0 2px rgba(239,68,68,0.3)}
+.container{max-width:980px;margin:0 auto;padding:24px 16px}
+.tabs{display:flex;border-bottom:2px solid #DDE3EE;margin-bottom:24px;background:#fff;border-radius:10px 10px 0 0;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.06)}
+.tab{padding:13px 20px;font-size:13px;font-weight:600;color:#6B7A99;border:none;background:transparent;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;transition:all 0.15s}
+.tab.active{color:#1F3864;border-bottom-color:#1F3864;background:#F0F4FA}
+.tab:hover:not(.active){color:#1F3864;background:#F8FAFF}
+.btn{padding:8px 16px;font-size:13px;font-weight:600;border:none;border-radius:8px;cursor:pointer;transition:all 0.15s;white-space:nowrap}
+.btn:disabled{opacity:0.5;cursor:not-allowed}
+.btn-primary{background:#2E5090;color:#fff}.btn-primary:hover:not(:disabled){background:#1F3864}
+.btn-white{background:#fff;color:#1F3864;border:1px solid rgba(255,255,255,0.35)}.btn-white:hover{background:#E8F0FE}
+.btn-green{background:#1D7A4A;color:#fff}.btn-green:hover:not(:disabled){background:#145c37}
+.btn-red{background:#C0392B;color:#fff}.btn-red:hover:not(:disabled){background:#96281B}
+.btn-outline{background:#fff;color:#1F3864;border:1.5px solid #BDD7EE}.btn-outline:hover:not(:disabled){background:#EBF3FB}
+.btn-amber{background:#D4800A;color:#fff}.btn-amber:hover{background:#b56b08}
+.btn-sm{padding:5px 11px;font-size:12px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+@media(max-width:580px){.stats{grid-template-columns:repeat(2,1fr)}}
+.stat{background:#fff;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,0.07);border-left:4px solid #BDD7EE}
+.stat.s-blue{border-left-color:#2E5090}.stat.s-green{border-left-color:#1D7A4A}
+.stat.s-amber{border-left-color:#D4800A}.stat.s-red{border-left-color:#C0392B}
+.stat .sl{font-size:11px;color:#6B7A99;text-transform:uppercase;letter-spacing:0.07em;font-weight:700;margin-bottom:5px}
+.stat .sv{font-size:26px;font-weight:700;color:#1F3864}
+.stat.s-green .sv{color:#1D7A4A}.stat.s-amber .sv{color:#D4800A}.stat.s-red .sv{color:#C0392B}
+.search-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.search-row input,.search-row select{padding:9px 12px;font-size:13px;border:1.5px solid #DDE3EE;border-radius:8px;background:#fff;color:#1a1a1a;flex:1;min-width:130px}
+.search-row input:focus,.search-row select:focus{outline:none;border-color:#2E5090}
+.card{background:#fff;border:1.5px solid #EBF0F8;border-radius:10px;padding:13px 15px;margin-bottom:8px;display:flex;align-items:center;gap:12px;transition:border-color 0.15s;box-shadow:0 1px 3px rgba(0,0,0,0.04)}
+.card:hover{border-color:#BDD7EE;box-shadow:0 2px 8px rgba(46,80,144,0.08)}
+.card-icon{width:40px;height:40px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.card-info{flex:1;min-width:0}
+.card-name{font-size:14px;font-weight:700;color:#1F3864;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-meta{font-size:12px;color:#6B7A99;margin-top:2px}
+.card-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;flex-shrink:0}
+.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700;flex-shrink:0;text-transform:uppercase;letter-spacing:0.04em}
+.b-ok{background:#D4EDDA;color:#155724}.b-out{background:#FFF3CD;color:#856404}
+.b-late{background:#F8D7DA;color:#721C24}.b-def{background:#E2E3E5;color:#383D41}
+.alert-bar{background:#FFF3CD;border:1.5px solid #FFEAA7;border-radius:8px;padding:11px 15px;font-size:13px;color:#856404;font-weight:600;margin-bottom:16px}
+.empty{text-align:center;padding:3rem;color:#6B7A99;font-size:14px;background:#fff;border-radius:10px;border:1.5px dashed #DDE3EE}
+.loading{text-align:center;padding:3rem;color:#6B7A99;font-size:14px}
+.loading-spin{display:inline-block;width:24px;height:24px;border:3px solid #DDE3EE;border-top-color:#2E5090;border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:10px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.section-lbl{font-size:11px;font-weight:700;color:#6B7A99;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:8px}
+.loan-row{background:#fff;border:1.5px solid #EBF0F8;border-radius:10px;padding:13px 15px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,0.04)}
+.loan-name{font-size:14px;font-weight:700;color:#1F3864}
+.loan-meta{font-size:12px;color:#6B7A99;margin-top:3px}
+.late-txt{color:#C0392B;font-weight:700}
+.modal-bg{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;padding:1rem;z-index:200}
+.modal{background:#fff;border-radius:14px;padding:24px;width:100%;max-width:480px;box-shadow:0 8px 32px rgba(0,0,0,0.18);max-height:90vh;overflow-y:auto}
+.modal h2{font-size:17px;font-weight:700;margin-bottom:16px;color:#1F3864}
+.mfrow{margin-bottom:13px}
+.mfrow label{display:block;font-size:11px;font-weight:700;color:#6B7A99;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.05em}
+.mfrow input,.mfrow select,.mfrow textarea{width:100%;padding:10px 12px;font-size:14px;border:1.5px solid #DDE3EE;border-radius:8px;background:#fff;color:#1a1a1a;font-family:inherit}
+.mfrow input:focus,.mfrow select:focus,.mfrow textarea:focus{outline:none;border-color:#2E5090}
+.mfrow textarea{min-height:72px;resize:vertical}
+.mbtns{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;flex-wrap:wrap}
+.qr-grid{display:flex;flex-wrap:wrap;gap:14px;margin-top:16px}
+.qr-lbl{background:#fff;border:1.5px solid #DDE3EE;border-radius:10px;padding:14px;display:flex;flex-direction:column;align-items:center;gap:8px;width:158px;cursor:pointer;transition:border-color 0.15s;box-shadow:0 1px 3px rgba(0,0,0,0.05)}
+.qr-lbl:hover{border-color:#2E5090;box-shadow:0 2px 8px rgba(46,80,144,0.12)}
+.qr-lbl .qn{font-size:12px;font-weight:700;color:#1F3864;text-align:center;max-width:134px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qr-lbl .qm{font-size:10px;color:#6B7A99;text-align:center}
+.scan-frame{border:1.5px solid #DDE3EE;border-radius:10px;overflow:hidden;min-height:240px;display:flex;align-items:center;justify-content:center;background:#111;margin-bottom:14px}
+.scan-ok{background:#D4EDDA;border:1.5px solid #C3E6CB;border-radius:8px;padding:11px 15px;font-size:14px;color:#155724;font-weight:600;margin-bottom:12px}
+.scan-err{background:#F8D7DA;border:1.5px solid #F5C6CB;border-radius:8px;padding:11px 15px;font-size:14px;color:#721C24;font-weight:600;margin-bottom:12px}
+.scanned-card{background:#F0F4FA;border-radius:10px;padding:14px;margin-bottom:14px;border:1.5px solid #BDD7EE}
+.scanned-card .sn{font-size:16px;font-weight:700;color:#1F3864}
+.scanned-card .sm{font-size:13px;color:#6B7A99;margin-top:4px}
+.action-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.acard{border:1.5px solid #DDE3EE;border-radius:10px;padding:16px;text-align:center;cursor:pointer;background:#fff;transition:all 0.15s}
+.acard:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,0.10)}
+.acard .ai{font-size:26px;margin-bottom:6px}
+.acard .al{font-size:13px;font-weight:700;color:#1F3864}
+.acard.ac-green{border-color:#1D7A4A;background:#D4EDDA}
+.acard.ac-amber{border-color:#D4800A;background:#FFF3CD}
+.acard.ac-red{border-color:#C0392B;background:#F8D7DA}
+.hint{font-size:13px;color:#6B7A99;margin-bottom:14px;line-height:1.6}
+hr.div{border:none;border-top:1.5px solid #EBF0F8;margin:20px 0}
+#pane-scanner .inner{max-width:480px;margin:0 auto}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1F3864;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity 0.3s;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1}
+@media(max-width:640px){
+  .card{flex-wrap:wrap}.card-actions{width:100%;justify-content:flex-start}
+  .topbar{padding:10px 14px}.container{padding:14px 10px}
+  .tab{padding:10px 12px;font-size:12px}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     SETUP SCREEN
+══════════════════════════════════════════════ -->
+<div id="setup-screen" style="display: none;">
+<div class="setup-card">
+  <h1>🏭 Magazijn Gereedschapsbeheer</h1>
+  <p class="sub">Verbind met je Supabase-database om te starten. Volg de stappen hieronder als je nog geen database hebt.</p>
+
+  <details open="">
+    <summary>Stap 1 — Database aanmaken in Supabase</summary>
+    <div style="margin-top:10px">
+      <ol class="setup-steps" style="list-style:none;margin:0">
+        <li>1. Ga naar <a href="https://supabase.com/" target="_blank">supabase.com</a> en maak een gratis account</li>
+        <li>2. Klik op <strong>"New project"</strong>, kies een naam en regio (bijv. West Europe)</li>
+        <li>3. Ga naar <strong>SQL Editor</strong> en plak de code hieronder, klik op "Run"</li>
+        <li>4. Ga naar <strong>Project Settings → API</strong> en kopieer de URL en anon key</li>
+      </ol>
+      <div class="sql-box">
+        <button class="copy-btn" onclick="copySQL()">Kopiëren</button>
+        <pre id="sql-code">-- Tabel: gereedschap
+CREATE TABLE gereedschap (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  naam TEXT NOT NULL,
+  categorie TEXT DEFAULT 'other',
+  serienr TEXT,
+  locatie TEXT,
+  status TEXT DEFAULT 'beschikbaar',
+  defect_omschrijving TEXT,
+  defect_door TEXT,
+  defect_datum DATE,
+  aangemaakt_op TIMESTAMPTZ DEFAULT now()
+);
+
+-- Tabel: uitleningen
+CREATE TABLE uitleningen (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  tool_id UUID REFERENCES gereedschap(id) ON DELETE CASCADE,
+  persoon TEXT NOT NULL,
+  afdeling TEXT,
+  datum DATE NOT NULL DEFAULT CURRENT_DATE,
+  verwacht_terug DATE,
+  terug_op DATE,
+  opmerking TEXT,
+  aangemaakt_op TIMESTAMPTZ DEFAULT now()
+);
+
+-- Rij-beveiliging uitschakelen (iedereen mag lezen/schrijven)
+ALTER TABLE gereedschap ENABLE ROW LEVEL SECURITY;
+ALTER TABLE uitleningen ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "open_gereedschap" ON gereedschap FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "open_uitleningen" ON uitleningen FOR ALL USING (true) WITH CHECK (true);</pre>
+      </div>
+    </div>
+  </details>
+
+  <div style="height:1px;background:#EBF0F8;margin:16px 0"></div>
+
+  <div id="err-box" class="err-box" style="display: none;"></div>
+
+  <div class="frow">
+    <label>Supabase Project URL</label>
+    <input id="sb-url" placeholder="https://abcdefgh.supabase.co" autocomplete="off" value="https://fnarmkyoimqhgqayvelc.supabase.co">
+  </div>
+  <div class="frow">
+    <label>Supabase Anon Key</label>
+    <input id="sb-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." autocomplete="off" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZuYXJta3lvaW1xaGdxYXl2ZWxjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwNjQyMzIsImV4cCI6MjA5MDY0MDIzMn0.6ysER4QRL-xjB5CF2rdHmSCt2CPCfuS_g5K2h7FenAA">
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <button class="btn btn-primary" id="btn-connect" onclick="connectDB()" style="flex:1">Verbinden →</button>
+    <button class="btn btn-outline" onclick="loadSaved()" style="font-size:12px">Eerder opgeslagen sleutels laden</button>
+  </div>
+  <p style="font-size:11px;color:#6B7A99;margin-top:12px;line-height:1.5">
+    Je sleutels worden lokaal opgeslagen in je browser en nooit naar externe servers gestuurd.
+  </p>
+</div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     APP SCREEN
+══════════════════════════════════════════════ -->
+<div id="app-screen" style="display: block;">
+<div class="topbar">
+  <div>
+    <h1>🏭 Magazijn — Gereedschapsbeheer</h1>
+    <p id="sub-lbl">0 items · 0 uitgeleend · 0 te laat</p>
+  </div>
+  <div class="topbar-btns">
+    <div class="live-dot" id="live-dot" title="Verbonden met database"></div>
+    <button class="btn btn-white btn-sm" onclick="exportCSV()">⇩ Excel</button>
+    <button class="btn btn-white btn-sm" onclick="openAdd()">+ Gereedschap</button>
+    <button class="btn btn-white btn-sm" onclick="disconnect()" title="Verbinding verbreken" style="opacity:0.6">◯</button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="tabs">
+    <button class="tab active" data-t="inventaris" onclick="switchTab('inventaris',this)">🔧 Inventaris</button>
+    <button class="tab" data-t="uitleningen" onclick="switchTab('uitleningen',this)">📋 Uitleningen</button>
+    <button class="tab" data-t="qrcodes" onclick="switchTab('qrcodes',this)">▦ QR-labels</button>
+    <button class="tab" data-t="scanner" onclick="switchTab('scanner',this)">📷 Scanner</button>
+  </div>
+  <div id="pane-inventaris"><div class="stats">
+    <div class="stat s-blue"><div class="sl">Totaal</div><div class="sv">0</div></div>
+    <div class="stat s-green"><div class="sl">Beschikbaar</div><div class="sv">0</div></div>
+    <div class="stat s-amber"><div class="sl">Uitgeleend</div><div class="sv">0</div></div>
+    <div class="stat s-red"><div class="sl">Te laat</div><div class="sv">0</div></div>
+  </div><div class="search-row">
+    <input type="text" placeholder="Zoeken op naam, serienr, locatie..." oninput="fQ=this.value;renderInventaris()">
+    <select onchange="fCat=this.value;renderInventaris()">
+      <option value="" selected="selected">Alle categorieën</option>
+      <option value="hand">Handgereedschap</option><option value="meting">Meetgereedschap</option><option value="elektr">Elektrisch</option><option value="pneum">Pneumatisch</option><option value="zwaar">Zwaar materieel</option><option value="other">Overige</option>
+    </select>
+    <select onchange="fSt=this.value;renderInventaris()">
+      <option value="" selected="selected">Alle statussen</option>
+      <option value="beschikbaar">Beschikbaar</option>
+      <option value="uitgeleend">Uitgeleend</option>
+      <option value="te laat">Te laat</option>
+      <option value="defect">Defect</option>
+    </select>
+  </div><div class="empty"><p style="font-size:32px;margin-bottom:10px">🗜️</p><p>Nog geen gereedschap toegevoegd.</p></div></div>
+  <div id="pane-uitleningen" style="display:none"></div>
+  <div id="pane-qrcodes" style="display:none"></div>
+  <div id="pane-scanner" style="display:none"></div>
+</div>
+</div>
+
+<div id="modal-root"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Globals ──────────────────────────────────────────────────────────────
+let sb = null;
+let tools = [], loans = [];
+let scannerInst = null;
+let currentTab = 'inventaris';
+let fQ='', fCat='', fSt='';
+
+const ICONS = {hand:'🔧',meting:'📐',elektr:'🔌',pneum:'💨',zwaar:'⚙️',other:'🗜️'};
+const IBGS  = {hand:'#FFF3CD',meting:'#D4EDDA',elektr:'#E8E0FF',pneum:'#FFE0D6',zwaar:'#D0E8FF',other:'#E9ECEF'};
+const CAT_NL= {hand:'Handgereedschap',meting:'Meetgereedschap',elektr:'Elektrisch',pneum:'Pneumatisch',zwaar:'Zwaar materieel',other:'Overige'};
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const today = () => new Date().toISOString().slice(0,10);
+const fmt = d => { if(!d)return''; const[y,m,day]=d.slice(0,10).split('-'); return`${day}/${m}/${y}`; };
+const daysDiff = d => d ? Math.floor((new Date()-new Date(d))/86400000) : 0;
+
+function toast(msg, dur=2500){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), dur);
+}
+
+function setLive(ok){
+  const d=document.getElementById('live-dot');
+  if(d){ d.classList.toggle('red',!ok); d.title=ok?'Verbonden met database':'Verbindingsfout'; }
+}
+
+// ── Supabase setup ────────────────────────────────────────────────────────
+function copySQL(){
+  navigator.clipboard.writeText(document.getElementById('sql-code').textContent);
+  toast('SQL gekopieerd!');
+}
+
+function loadSaved(){
+  const url=localStorage.getItem('sb_url')||'';
+  const key=localStorage.getItem('sb_key')||'';
+  document.getElementById('sb-url').value=url;
+  document.getElementById('sb-key').value=key;
+}
+
+async function connectDB(){
+  const url=(document.getElementById('sb-url').value||'').trim();
+  const key=(document.getElementById('sb-key').value||'').trim();
+  const err=document.getElementById('err-box');
+  err.style.display='none';
+  if(!url||!key){ showErr('Vul beide velden in.'); return; }
+  if(!url.startsWith('https://')){ showErr('URL moet beginnen met https://'); return; }
+
+  const btn=document.getElementById('btn-connect');
+  btn.disabled=true; btn.textContent='Verbinden...';
+
+  try{
+    // supabase-js v2 via CDN exposeert window.supabase
+    const client = window.supabase.createClient(url, key);
+    // test verbinding
+    const {error} = await client.from('gereedschap').select('id').limit(1);
+    if(error) throw new Error(error.message);
+    sb = client;
+    localStorage.setItem('sb_url', url);
+    localStorage.setItem('sb_key', key);
+    document.getElementById('setup-screen').style.display='none';
+    document.getElementById('app-screen').style.display='block';
+    setLive(true);
+    await loadAll();
+  } catch(e){
+    showErr(`Verbinding mislukt: ${e.message}<br><small>Controleer je URL/key en of de SQL correct uitgevoerd is in Supabase.</small>`);
+    setLive(false);
+  }
+  btn.disabled=false; btn.textContent='Verbinden →';
+}
+
+function showErr(msg){
+  const e=document.getElementById('err-box');
+  e.innerHTML=msg; e.style.display='block';
+}
+
+function disconnect(){
+  if(!confirm('Verbinding verbreken?')) return;
+  sb=null; tools=[]; loans=[];
+  document.getElementById('setup-screen').style.display='flex';
+  document.getElementById('app-screen').style.display='none';
+}
+
+// auto-load saved credentials
+window.addEventListener('DOMContentLoaded', ()=>{
+  const url=localStorage.getItem('sb_url');
+  const key=localStorage.getItem('sb_key');
+  if(url && key){
+    document.getElementById('sb-url').value=url;
+    document.getElementById('sb-key').value=key;
+    connectDB();
+  }
+});
+
+// ── Data loading ──────────────────────────────────────────────────────────
+async function loadAll(){
+  try{
+    const [tr, lr] = await Promise.all([
+      sb.from('gereedschap').select('*').order('aangemaakt_op', {ascending:true}),
+      sb.from('uitleningen').select('*').order('datum', {ascending:false})
+    ]);
+    if(tr.error) throw tr.error;
+    if(lr.error) throw lr.error;
+    tools = tr.data || [];
+    loans = lr.data || [];
+    setLive(true);
+    renderAll();
+  } catch(e){
+    setLive(false);
+    toast('Fout bij laden: '+e.message, 4000);
+  }
+}
+
+// ── Status berekenen ──────────────────────────────────────────────────────
+function toolStatus(t){
+  const loan = loans.find(l=>l.tool_id===t.id && !l.terug_op);
+  if(!loan) return t.status||'beschikbaar';
+  if(loan.verwacht_terug && loan.verwacht_terug < today()) return 'te laat';
+  return 'uitgeleend';
+}
+
+function statusBadge(s){
+  const cls={beschikbaar:'b-ok',uitgeleend:'b-out','te laat':'b-late',defect:'b-def',onderhoud:'b-def'};
+  const lbl={beschikbaar:'Beschikbaar',uitgeleend:'Uitgeleend','te laat':'Te laat',defect:'Defect',onderhoud:'Onderhoud'};
+  return`<span class="badge ${cls[s]||'b-def'}">${lbl[s]||s}</span>`;
+}
+
+// ── Render all ────────────────────────────────────────────────────────────
+function renderAll(){
+  const active = loans.filter(l=>!l.terug_op);
+  const late   = active.filter(l=>l.verwacht_terug && l.verwacht_terug < today()).length;
+  document.getElementById('sub-lbl').textContent =
+    `${tools.length} items · ${active.length} uitgeleend · ${late} te laat`;
+  if(currentTab==='inventaris')    renderInventaris();
+  else if(currentTab==='uitleningen') renderUitleningen();
+  else if(currentTab==='qrcodes')  renderQR();
+}
+
+// ── Inventaris ────────────────────────────────────────────────────────────
+function renderInventaris(){
+  const filtered = tools.filter(t=>{
+    const q=fQ.toLowerCase();
+    return (!q || t.naam.toLowerCase().includes(q) || (t.serienr||'').toLowerCase().includes(q) || (t.locatie||'').toLowerCase().includes(q))
+      && (!fCat || t.categorie===fCat)
+      && (!fSt  || toolStatus(t)===fSt);
+  });
+  const besch=tools.filter(t=>toolStatus(t)==='beschikbaar').length;
+  const uit  =tools.filter(t=>toolStatus(t)==='uitgeleend').length;
+  const late =tools.filter(t=>toolStatus(t)==='te laat').length;
+
+  let h=`<div class="stats">
+    <div class="stat s-blue"><div class="sl">Totaal</div><div class="sv">${tools.length}</div></div>
+    <div class="stat s-green"><div class="sl">Beschikbaar</div><div class="sv">${besch}</div></div>
+    <div class="stat s-amber"><div class="sl">Uitgeleend</div><div class="sv">${uit}</div></div>
+    <div class="stat s-red"><div class="sl">Te laat</div><div class="sv">${late}</div></div>
+  </div>`;
+
+  if(late>0) h+=`<div class="alert-bar">⚠ ${late} gereedschap${late>1?'stukken':''} te laat terug — zie Uitleningen</div>`;
+
+  h+=`<div class="search-row">
+    <input type="text" placeholder="Zoeken op naam, serienr, locatie..." value="${esc(fQ)}" oninput="fQ=this.value;renderInventaris()">
+    <select onchange="fCat=this.value;renderInventaris()">
+      <option value="">Alle categorieën</option>
+      ${Object.entries(CAT_NL).map(([v,l])=>`<option value="${v}" ${fCat===v?'selected':''}>${l}</option>`).join('')}
+    </select>
+    <select onchange="fSt=this.value;renderInventaris()">
+      <option value="">Alle statussen</option>
+      <option value="beschikbaar" ${fSt==='beschikbaar'?'selected':''}>Beschikbaar</option>
+      <option value="uitgeleend"  ${fSt==='uitgeleend'?'selected':''}>Uitgeleend</option>
+      <option value="te laat"     ${fSt==='te laat'?'selected':''}>Te laat</option>
+      <option value="defect"      ${fSt==='defect'?'selected':''}>Defect</option>
+    </select>
+  </div>`;
+
+  if(!filtered.length){
+    h+=`<div class="empty"><p style="font-size:32px;margin-bottom:10px">🗜️</p><p>${tools.length?'Geen resultaten gevonden.':'Nog geen gereedschap toegevoegd.'}</p></div>`;
+  } else {
+    filtered.forEach(t=>{
+      const st   = toolStatus(t);
+      const loan = loans.find(l=>l.tool_id===t.id && !l.terug_op);
+      const linfo= loan ? ` · Aan: <strong>${esc(loan.persoon)}</strong>${loan.afdeling?' ('+esc(loan.afdeling)+')':''}` : '';
+      h+=`<div class="card">
+        <div class="card-icon" style="background:${IBGS[t.categorie]||IBGS.other}">${ICONS[t.categorie]||'🗜️'}</div>
+        <div class="card-info">
+          <div class="card-name">${esc(t.naam)}</div>
+          <div class="card-meta">${esc(t.locatie||'—')} · ${esc(t.serienr||'geen serienr')}${linfo}</div>
+        </div>
+        ${statusBadge(st)}
+        <div class="card-actions">
+          ${st==='beschikbaar'?`<button class="btn btn-green btn-sm" onclick="openLend('${t.id}')">Uitlenen</button>`:''}
+          ${(st==='uitgeleend'||st==='te laat')?`<button class="btn btn-outline btn-sm" onclick="doReturn('${t.id}')">Terug</button>`:''}
+          <button class="btn btn-outline btn-sm" onclick="showQRModal('${t.id}')">QR</button>
+          <button class="btn btn-outline btn-sm" onclick="openEdit('${t.id}')">✏</button>
+          <button class="btn btn-red btn-sm" onclick="delTool('${t.id}')">✕</button>
+        </div>
+      </div>`;
+    });
+  }
+  document.getElementById('pane-inventaris').innerHTML=h;
+}
+
+// ── Uitleningen ───────────────────────────────────────────────────────────
+function renderUitleningen(){
+  const active = loans.filter(l=>!l.terug_op).sort((a,b)=>a.verwacht_terug>b.verwacht_terug?1:-1);
+  const hist   = loans.filter(l=>l.terug_op).slice(0,40);
+  let h='';
+  if(!active.length){
+    h+=`<div class="empty"><p style="font-size:32px;margin-bottom:10px">✅</p><p>Geen actieve uitleningen.</p></div>`;
+  } else {
+    h+=`<div class="section-lbl">Actief (${active.length})</div>`;
+    active.forEach(l=>{
+      const t    = tools.find(x=>x.id===l.tool_id);
+      const late = l.verwacht_terug && l.verwacht_terug < today();
+      const days = late ? daysDiff(l.verwacht_terug) : 0;
+      h+=`<div class="loan-row">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+          <div>
+            <div class="loan-name">${t?esc(t.naam):'(verwijderd)'} ${late?'<span class="badge b-late">TE LAAT</span>':''}</div>
+            <div class="loan-meta">Technieker: <strong>${esc(l.persoon)}</strong>${l.afdeling?' · '+esc(l.afdeling):''}</div>
+            <div class="loan-meta">Uitgeleend: ${fmt(l.datum)}${l.verwacht_terug
+              ?` · Terug verwacht: <span class="${late?'late-txt':''}">${fmt(l.verwacht_terug)}${late?` (${days} dag${days===1?'':'en'} te laat)`:''}</span>`:''}</div>
+            ${l.opmerking?`<div class="loan-meta" style="margin-top:3px">📝 ${esc(l.opmerking)}</div>`:''}
+          </div>
+          <button class="btn btn-green btn-sm" onclick="doReturn('${l.tool_id}')">Teruggave</button>
+        </div>
+      </div>`;
+    });
+  }
+  if(hist.length){
+    h+=`<hr class="div"><div class="section-lbl">Geschiedenis (${hist.length})</div>`;
+    hist.forEach(l=>{
+      const t=tools.find(x=>x.id===l.tool_id);
+      h+=`<div class="loan-row" style="opacity:0.6">
+        <div class="loan-name" style="font-size:13px">${t?esc(t.naam):'(verwijderd)'}</div>
+        <div class="loan-meta">${esc(l.persoon)}${l.afdeling?' · '+esc(l.afdeling):''} · ${fmt(l.datum)} → ${fmt(l.terug_op)}</div>
+      </div>`;
+    });
+  }
+  document.getElementById('pane-uitleningen').innerHTML=h;
+}
+
+// ── QR codes ──────────────────────────────────────────────────────────────
+function renderQR(){
+  if(!tools.length){
+    document.getElementById('pane-qrcodes').innerHTML=`<div class="empty"><p style="font-size:32px;margin-bottom:10px">🏷️</p><p>Voeg eerst gereedschap toe.</p></div>`;
+    return;
+  }
+  let h=`<p class="hint">Klik op een label om te vergroten en af te drukken. Plak het geprinte label op het gereedschap.</p>
+  <button class="btn btn-primary" style="margin-bottom:4px" onclick="printAll()">🖨 Alle labels afdrukken</button>
+  <div class="qr-grid" id="qr-grid">`;
+  tools.forEach(t=>{
+    h+=`<div class="qr-lbl" onclick="showQRModal('${t.id}')">
+      <div id="qmini-${t.id}" style="width:100px;height:100px"></div>
+      <div class="qn">${esc(t.naam)}</div>
+      <div class="qm">${esc(t.serienr||t.id.slice(0,8))}</div>
+    </div>`;
+  });
+  h+=`</div>`;
+  document.getElementById('pane-qrcodes').innerHTML=h;
+  setTimeout(()=>{
+    tools.forEach(t=>{
+      const el=document.getElementById('qmini-'+t.id);
+      if(el && typeof QRCode!=='undefined'){
+        el.innerHTML='';
+        try{ new QRCode(el,{text:'TOOL:'+t.id,width:100,height:100,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
+      }
+    });
+  },200);
+}
+
+// ── Scanner ───────────────────────────────────────────────────────────────
+function renderScanner(){
+  document.getElementById('pane-scanner').innerHTML=`<div class="inner">
+    <p class="hint">Druk op "Camera starten" en scan de QR-code op het gereedschap. De technieker kan dan direct uitlenen, teruggeven of een defect melden.</p>
+    <div class="scan-frame"><div id="qr-reader" style="width:100%"></div></div>
+    <div id="scan-fb"></div>
+    <div id="scan-actions"></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn-primary" id="btn-start" onclick="startScan()">▶ Camera starten</button>
+      <button class="btn btn-outline" id="btn-stop" style="display:none" onclick="stopScan()">■ Stop</button>
+    </div>
+  </div>`;
+}
+
+async function startScan(){
+  if(typeof Html5Qrcode==='undefined'){ document.getElementById('scan-fb').innerHTML=`<div class="scan-err">Scanner niet beschikbaar.</div>`; return; }
+  document.getElementById('btn-start').style.display='none';
+  document.getElementById('btn-stop').style.display='';
+  try{
+    scannerInst=new Html5Qrcode('qr-reader');
+    await scannerInst.start({facingMode:'environment'},{fps:10,qrbox:{width:210,height:210}},onScanOK,()=>{});
+  }catch(e){
+    document.getElementById('scan-fb').innerHTML=`<div class="scan-err">Camera toegang geweigerd of niet beschikbaar.<br><small>${e}</small></div>`;
+    document.getElementById('btn-start').style.display='';
+    document.getElementById('btn-stop').style.display='none';
+  }
+}
+
+async function stopScan(){
+  if(scannerInst){try{await scannerInst.stop();scannerInst.clear();}catch(e){}scannerInst=null;}
+  document.getElementById('btn-start').style.display='';
+  document.getElementById('btn-stop').style.display='none';
+}
+
+function onScanOK(decoded){
+  if(!decoded.startsWith('TOOL:')) return;
+  const id=decoded.replace('TOOL:','');
+  const tool=tools.find(t=>t.id===id);
+  stopScan();
+  if(!tool){ document.getElementById('scan-fb').innerHTML=`<div class="scan-err">Gereedschap niet herkend. Voeg het toe via Inventaris.</div>`; return; }
+  document.getElementById('scan-fb').innerHTML=`<div class="scan-ok">✓ Gereedschap herkend</div>`;
+  showScanActions(tool);
+}
+
+function showScanActions(tool){
+  const st   = toolStatus(tool);
+  const loan = loans.find(l=>l.tool_id===tool.id && !l.terug_op);
+  let h=`<div class="scanned-card">
+    <div class="sn">${esc(tool.naam)} ${statusBadge(st)}</div>
+    <div class="sm">${esc(tool.locatie||'')}${tool.serienr?' · '+esc(tool.serienr):''}</div>
+    ${loan?`<div class="sm" style="margin-top:5px">Uitgeleend aan <strong>${esc(loan.persoon)}</strong> op ${fmt(loan.datum)}</div>`:''}
+  </div>
+  <div class="action-grid">`;
+  if(st==='beschikbaar')           h+=`<div class="acard ac-green" onclick="openLendScan('${tool.id}')"><div class="ai">📤</div><div class="al">Uitlenen</div></div>`;
+  if(st==='uitgeleend'||st==='te laat') h+=`<div class="acard ac-amber" onclick="doReturnScan('${tool.id}')"><div class="ai">📥</div><div class="al">Teruggave</div></div>`;
+  h+=`<div class="acard ac-red" onclick="openDefectScan('${tool.id}')"><div class="ai">⚠️</div><div class="al">Defect melden</div></div>`;
+  h+=`</div>`;
+  document.getElementById('scan-actions').innerHTML=h;
+}
+
+// ── CRUD: Gereedschap ─────────────────────────────────────────────────────
+function openAdd(){
+  showModal(`<h2>Gereedschap toevoegen</h2>
+    <div class="mfrow"><label>Naam *</label><input id="fn" placeholder="bijv. Torquesleutel 40-200Nm" autofocus></div>
+    <div class="mfrow"><label>Categorie</label><select id="fc">${catOptions()}</select></div>
+    <div class="mfrow"><label>Serienummer / inventarisnr</label><input id="fs" placeholder="bijv. SN-2024-001"></div>
+    <div class="mfrow"><label>Locatie / rek</label><input id="fl" placeholder="bijv. Magazijn A, Rek 3"></div>
+    <div class="mbtns">
+      <button class="btn btn-outline" onclick="closeModal()">Annuleren</button>
+      <button class="btn btn-primary" id="save-btn" onclick="saveTool()">Opslaan</button>
+    </div>`);
+}
+
+function openEdit(id){
+  const t=tools.find(x=>x.id===id); if(!t)return;
+  showModal(`<h2>Bewerken</h2>
+    <div class="mfrow"><label>Naam *</label><input id="fn" value="${esc(t.naam)}"></div>
+    <div class="mfrow"><label>Categorie</label><select id="fc">${catOptions(t.categorie)}</select></div>
+    <div class="mfrow"><label>Serienummer</label><input id="fs" value="${esc(t.serienr||'')}"></div>
+    <div class="mfrow"><label>Locatie / rek</label><input id="fl" value="${esc(t.locatie||'')}"></div>
+    <div class="mfrow"><label>Status</label><select id="fst">
+      <option value="beschikbaar" ${t.status==='beschikbaar'?'selected':''}>Beschikbaar</option>
+      <option value="onderhoud"   ${t.status==='onderhoud'?'selected':''}>Onderhoud</option>
+      <option value="defect"      ${t.status==='defect'?'selected':''}>Defect</option>
+    </select></div>
+    <div class="mbtns">
+      <button class="btn btn-outline" onclick="closeModal()">Annuleren</button>
+      <button class="btn btn-primary" id="save-btn" onclick="saveTool('${id}')">Opslaan</button>
+    </div>`);
+}
+
+function catOptions(sel='hand'){
+  return Object.entries(CAT_NL).map(([v,l])=>`<option value="${v}" ${sel===v?'selected':''}>${l}</option>`).join('');
+}
+
+async function saveTool(editId=''){
+  const naam=document.getElementById('fn').value.trim();
+  if(!naam){ alert('Naam is verplicht.'); return; }
+  const btn=document.getElementById('save-btn');
+  btn.disabled=true; btn.textContent='Opslaan...';
+  const obj={naam, categorie:document.getElementById('fc').value,
+    serienr:document.getElementById('fs').value.trim()||null,
+    locatie:document.getElementById('fl').value.trim()||null,
+    status:document.getElementById('fst')?document.getElementById('fst').value:'beschikbaar'};
+  try{
+    if(editId){
+      const {error}=await sb.from('gereedschap').update(obj).eq('id',editId);
+      if(error)throw error;
+      toast('Gereedschap bijgewerkt ✓');
+    } else {
+      const {error}=await sb.from('gereedschap').insert(obj);
+      if(error)throw error;
+      toast('Gereedschap toegevoegd ✓');
+    }
+    closeModal(); await loadAll();
+  }catch(e){ alert('Fout: '+e.message); }
+  btn.disabled=false;
+}
+
+async function delTool(id){
+  if(!confirm('Dit gereedschap verwijderen?')) return;
+  try{
+    const {error}=await sb.from('gereedschap').delete().eq('id',id);
+    if(error)throw error;
+    toast('Verwijderd ✓'); await loadAll();
+  }catch(e){ alert('Fout: '+e.message); }
+}
+
+// ── CRUD: Uitlenen ────────────────────────────────────────────────────────
+function openLend(id){
+  const t=tools.find(x=>x.id===id);
+  showModal(`<h2>📤 Uitlenen: ${esc(t.naam)}</h2>
+    <div class="mfrow"><label>Naam technieker *</label><input id="lp" placeholder="Voornaam Naam" autofocus></div>
+    <div class="mfrow"><label>Afdeling</label><input id="la" placeholder="bijv. Productie, Onderhoud..."></div>
+    <div class="mfrow"><label>Datum</label><input type="date" id="ld" value="${today()}"></div>
+    <div class="mfrow"><label>Verwachte terugkomst</label><input type="date" id="lv"></div>
+    <div class="mfrow"><label>Opmerking</label><input id="lo" placeholder="Optioneel"></div>
+    <div class="mbtns">
+      <button class="btn btn-outline" onclick="closeModal()">Annuleren</button>
+      <button class="btn btn-green" id="save-btn" onclick="saveLend('${id}')">Bevestigen</button>
+    </div>`);
+}
+
+function openLendScan(id){
+  const t=tools.find(x=>x.id===id);
+  showModal(`<h2>📤 Uitlenen: ${esc(t.naam)}</h2>
+    <div class="mfrow"><label>Naam technieker *</label><input id="lp" placeholder="Voornaam Naam" autofocus></div>
+    <div class="mfrow"><label>Afdeling</label><input id="la" placeholder="bijv. Productie"></div>
+    <div class="mfrow"><label>Verwachte terugkomst</label><input type="date" id="lv"></div>
+    <div class="mfrow"><label>Opmerking</label><input id="lo" placeholder="Optioneel"></div>
+    <div class="mbtns">
+      <button class="btn btn-outline" onclick="closeModal()">Annuleren</button>
+      <button class="btn btn-green" id="save-btn" onclick="saveLend('${id}',true)">Bevestigen</button>
+    </div>`);
+}
+
+async function saveLend(toolId, fromScan=false){
+  const persoon=(document.getElementById('lp')||{value:''}).value.trim();
+  if(!persoon){ alert('Naam technieker is verplicht.'); return; }
+  const btn=document.getElementById('save-btn');
+  btn.disabled=true; btn.textContent='Opslaan...';
+  const record={
+    tool_id:toolId, persoon,
+    afdeling:(document.getElementById('la')||{value:''}).value.trim()||null,
+    datum:document.getElementById('ld')?document.getElementById('ld').value:today(),
+    verwacht_terug:document.getElementById('lv')?(document.getElementById('lv').value||null):null,
+    opmerking:(document.getElementById('lo')||{value:''}).value.trim()||null,
+    terug_op:null
+  };
+  try{
+    const {error:le}=await sb.from('uitleningen').insert(record);
+    if(le)throw le;
+    const {error:te}=await sb.from('gereedschap').update({status:'uitgeleend'}).eq('id',toolId);
+    if(te)throw te;
+    toast(`Uitgeleend aan ${persoon} ✓`);
+    closeModal(); await loadAll();
+    if(fromScan){
+      if(document.getElementById('scan-fb'))document.getElementById('scan-fb').innerHTML=`<div class="scan-ok">✓ Uitgeleend aan ${esc(persoon)}</div>`;
+      if(document.getElementById('scan-actions'))document.getElementById('scan-actions').innerHTML='';
+    }
+  }catch(e){ alert('Fout: '+e.message); btn.disabled=false; }
+}
+
+async function doReturn(toolId){
+  try{
+    const loan=loans.find(l=>l.tool_id===toolId && !l.terug_op);
+    if(loan){
+      const {error:le}=await sb.from('uitleningen').update({terug_op:today()}).eq('id',loan.id);
+      if(le)throw le;
+    }
+    const {error:te}=await sb.from('gereedschap').update({status:'beschikbaar'}).eq('id',toolId);
+    if(te)throw te;
+    toast('Teruggave geregistreerd ✓'); await loadAll();
+  }catch(e){ alert('Fout: '+e.message); }
+}
+
+async function doReturnScan(toolId){
+  await doReturn(toolId);
+  if(document.getElementById('scan-fb'))document.getElementById('scan-fb').innerHTML=`<div class="scan-ok">✓ Teruggave geregistreerd op ${fmt(today())}</div>`;
+  if(document.getElementById('scan-actions'))document.getElementById('scan-actions').innerHTML='';
+}
+
+// ── Defect melden ─────────────────────────────────────────────────────────
+function openDefectScan(id){
+  const t=tools.find(x=>x.id===id);
+  showModal(`<h2>⚠️ Defect melden: ${esc(t.naam)}</h2>
+    <div class="mfrow"><label>Gemeld door *</label><input id="dp" placeholder="Naam technieker" autofocus></div>
+    <div class="mfrow"><label>Omschrijving *</label><textarea id="dd" placeholder="Wat is er precies mis?"></textarea></div>
+    <div class="mfrow"><label>Ernst</label><select id="de">
+      <option value="defect">Defect — niet bruikbaar</option>
+      <option value="onderhoud">Onderhoud nodig</option>
+    </select></div>
+    <div class="mbtns">
+      <button class="btn btn-outline" onclick="closeModal()">Annuleren</button>
+      <button class="btn btn-red" id="save-btn" onclick="saveDefect('${id}')">Melden</button>
+    </div>`);
+}
+
+async function saveDefect(id){
+  const p=document.getElementById('dp').value.trim();
+  const d=document.getElementById('dd').value.trim();
+  if(!p||!d){ alert('Vul alle verplichte velden in.'); return; }
+  const btn=document.getElementById('save-btn');
+  btn.disabled=true; btn.textContent='Opslaan...';
+  const ernst=document.getElementById('de').value;
+  try{
+    const {error}=await sb.from('gereedschap').update({
+      status:ernst, defect_omschrijving:d, defect_door:p, defect_datum:today()
+    }).eq('id',id);
+    if(error)throw error;
+    toast('Defect gemeld ✓'); closeModal(); await loadAll();
+    if(document.getElementById('scan-fb'))document.getElementById('scan-fb').innerHTML=`<div class="scan-ok">✓ Defect gemeld door ${esc(p)}</div>`;
+    if(document.getElementById('scan-actions'))document.getElementById('scan-actions').innerHTML='';
+  }catch(e){ alert('Fout: '+e.message); btn.disabled=false; }
+}
+
+// ── QR modal & print ──────────────────────────────────────────────────────
+function showQRModal(id){
+  const t=tools.find(x=>x.id===id); if(!t)return;
+  showModal(`<h2>QR-label: ${esc(t.naam)}</h2>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:12px 0">
+      <div id="qr-big" style="width:200px;height:200px"></div>
+      <div style="font-size:15px;font-weight:700;text-align:center;color:#1F3864">${esc(t.naam)}</div>
+      <div style="font-size:12px;color:#6B7A99;text-align:center">${esc(t.serienr||t.id.slice(0,8))}${t.locatie?' · '+esc(t.locatie):''}</div>
+    </div>
+    <div class="mbtns">
+      <button class="btn btn-outline" onclick="closeModal()">Sluiten</button>
+      <button class="btn btn-primary" onclick="printLabel('${id}')">🖨 Afdrukken</button>
+    </div>`);
+  setTimeout(()=>{
+    const el=document.getElementById('qr-big');
+    if(el && typeof QRCode!=='undefined'){
+      el.innerHTML='';
+      try{ new QRCode(el,{text:'TOOL:'+t.id,width:200,height:200,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
+    }
+  },150);
+}
+
+function printLabel(id){
+  const t=tools.find(x=>x.id===id); if(!t)return;
+  const canvas=document.querySelector('#qr-big canvas');
+  const img=canvas?canvas.toDataURL():'';
+  const w=window.open('','_blank','width=400,height=520');
+  w.document.write(`<!DOCTYPE html><html><head><title>Label</title>
+  <style>body{font-family:Arial,sans-serif;display:flex;flex-direction:column;align-items:center;padding:30px;text-align:center}
+  img{width:200px;height:200px;border:1px solid #ddd;padding:6px;border-radius:6px}
+  .n{font-size:16px;font-weight:700;margin:10px 0 4px;color:#1F3864}.m{font-size:12px;color:#6B7A99}
+  button{margin-top:20px;padding:8px 20px;background:#2E5090;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700}
+  @media print{button{display:none}}</style></head><body>
+  <img src="${img}"><div class="n">${esc(t.naam)}</div>
+  <div class="m">${esc(t.serienr||t.id.slice(0,8))}</div><div class="m">${esc(t.locatie||'')}</div>
+  <button onclick="window.print()">🖨 Afdrukken</button></body></html>`);
+  w.document.close();
+}
+
+function printAll(){
+  const items=tools.map(t=>({t,c:document.querySelector(`#qmini-${t.id} canvas`)}));
+  const w=window.open('','_blank');
+  let b=`<!DOCTYPE html><html><head><title>Alle QR-labels</title>
+  <style>body{font-family:Arial,sans-serif;padding:20px}h2{color:#1F3864;margin-bottom:16px;font-size:15px}
+  .g{display:flex;flex-wrap:wrap;gap:16px}.l{border:1px solid #ccc;border-radius:8px;padding:14px;
+  display:flex;flex-direction:column;align-items:center;width:160px;break-inside:avoid;text-align:center}
+  img{width:120px;height:120px}.n{font-weight:700;font-size:12px;margin:8px 0 3px;color:#1F3864}.m{font-size:10px;color:#6B7A99}
+  .nb{margin-bottom:20px;padding:8px 20px;background:#2E5090;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700}
+  @media print{.nb{display:none}}</style></head><body>
+  <h2>QR-labels — Magazijn gereedschap</h2>
+  <button class="nb" onclick="window.print()">🖨 Afdrukken</button><div class="g">`;
+  items.forEach(({t,c})=>{
+    const img=c?c.toDataURL():'';
+    b+=`<div class="l"><img src="${img}"><div class="n">${esc(t.naam)}</div><div class="m">${esc(t.serienr||t.id.slice(0,8))}</div><div class="m">${esc(t.locatie||'')}</div></div>`;
+  });
+  b+=`</div></body></html>`;
+  w.document.write(b); w.document.close();
+}
+
+// ── Export CSV ────────────────────────────────────────────────────────────
+function exportCSV(){
+  const rows=[['Nr.','Gereedschap','Serienummer','Categorie','Locatie','Status','Technieker','Afdeling','Datum uitlening','Verwacht terug','Datum teruggave','Opmerking']];
+  tools.forEach((t,i)=>{
+    const loan=loans.filter(l=>l.tool_id===t.id).sort((a,b)=>b.datum>a.datum?1:-1)[0];
+    rows.push([i+1, t.naam, t.serienr||'', CAT_NL[t.categorie]||t.categorie, t.locatie||'',
+      toolStatus(t), loan?loan.persoon:'', loan?loan.afdeling||'':'',
+      loan?fmt(loan.datum):'', loan?fmt(loan.verwacht_terug||''):'',
+      loan?fmt(loan.terug_op||''):'', loan?loan.opmerking||'':'']);
+  });
+  const csv=rows.map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=`gereedschap_${today()}.csv`;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},100);
+}
+
+// ── Modal & tabs ──────────────────────────────────────────────────────────
+function showModal(h){ document.getElementById('modal-root').innerHTML=`<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal">${h}</div></div>`; }
+function closeModal(){ document.getElementById('modal-root').innerHTML=''; }
+
+function switchTab(name,el){
+  if(name!=='scanner' && scannerInst) stopScan();
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  ['inventaris','uitleningen','qrcodes','scanner'].forEach(p=>document.getElementById('pane-'+p).style.display=p===name?'':'none');
+  currentTab=name;
+  if(name==='scanner')      renderScanner();
+  else if(name==='qrcodes') setTimeout(renderQR,60);
+  else if(name==='inventaris')   renderInventaris();
+  else if(name==='uitleningen')  renderUitleningen();
+}
+
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
+</script>
+
+
+</body></html>
